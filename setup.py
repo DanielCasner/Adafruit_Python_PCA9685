@@ -10,7 +10,7 @@ classifiers = ['Development Status :: 4 - Beta',
                'Topic :: Software Development',
                'Topic :: System :: Hardware']
 
-setup(name              = 'Adafruit_PCA9685_pigpio',
+setup(name              = 'PCA9685_pigpio',
       version           = '0.1.0',
       author            = 'Daniel Casner',
       author_email      = 'daniel@danielcasner.org',
@@ -18,6 +18,5 @@ setup(name              = 'Adafruit_PCA9685_pigpio',
       license           = 'MIT',
       classifiers       = classifiers,
       url               = 'https://github.com/DanielCasner/Adafruit_Python_PCA9685/',
-      dependency_links  = ['https://github.com/adafruit/Adafruit_Python_GPIO/tarball/master#egg=Adafruit-GPIO-0.6.5'],
       install_requires  = ['pigpio'],
       packages          = find_packages())

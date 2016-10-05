@@ -24,7 +24,10 @@
 # Author: Daniel Casner <www.danielcasner.org>
 #
 from __future__ import division
+from __future__ import print_function
 import logging
+import pigpio
+from pigpio_i2c import I2C
 import time
 import math
 
@@ -52,38 +55,43 @@ SLEEP              = 0x10
 ALLCALL            = 0x01
 INVRT              = 0x10
 OUTDRV             = 0x04
+FULL_ON_OFF        = 0x1000 # Write 1 to on and 0 to off for full on or vise versa for full off
 
+# Constants
+NUM_CHANNELS       = 16
+MAX_PWM            = 4095
 
 logger = logging.getLogger(__name__)
 
 
-def software_reset(i2c=None, **kwargs):
+def software_reset(i2c=None, pi=None, **kwargs):
     """Sends a software reset (SWRST) command to all servo drivers on the bus."""
     # Setup I2C interface for device 0x00 to talk to all of them.
     if i2c is None:
-        import Adafruit_GPIO.I2C as I2C
-        i2c = I2C
-    self._device = i2c.get_i2c_device(0x00, **kwargs)
-    self._device.writeRaw8(0x06)  # SWRST
-
+        if pi is None:
+            pi = pigpio.pi()
+        i2c = I2C(0, 0x00)
+    i2c.write_device(i2c, 0x06) # SWRST
 
 class PCA9685(object):
     """PCA9685 PWM LED/servo controller."""
 
-    def __init__(self, address=PCA9685_ADDRESS, i2c=None, **kwargs):
+    def __init__(self, address=PCA9685_ADDRESS, pi=None, i2c_bus=0, **kwargs):
         """Initialize the PCA9685."""
         # Setup I2C interface for the device.
-        if i2c is None:
-            import Adafruit_GPIO.I2C as I2C
-            i2c = I2C
-        self._device = i2c.get_i2c_device(address, **kwargs)
-        self.set_all_pwm(0, 0)
-        self._device.write8(MODE2, OUTDRV)
-        self._device.write8(MODE1, ALLCALL)
+        self._device = None
+        self._close_device = False
+        if pi is None:
+            pi = pigpio.pi()
+        self._device = I2C(pi, i2c_bus, address)
+        self.set_all_pwm_range(MAX_PWM)
+        self.set_all(False)
+        self._device.write_byte_data(MODE2, OUTDRV)
+        self._device.write_byte_data(MODE1, ALLCALL)
         time.sleep(0.005)  # wait for oscillator
-        mode1 = self._device.readU8(MODE1)
+        mode1 = self._device.read_byte_data(MODE1)
         mode1 = mode1 & ~SLEEP  # wake up (reset sleep)
-        self._device.write8(MODE1, mode1)
+        self._device.write_byte_data(MODE1, mode1)
         time.sleep(0.005)  # wait for oscillator
 
     def set_pwm_freq(self, freq_hz):
@@ -96,24 +104,67 @@ class PCA9685(object):
         logger.debug('Estimated pre-scale: {0}'.format(prescaleval))
         prescale = int(math.floor(prescaleval + 0.5))
         logger.debug('Final pre-scale: {0}'.format(prescale))
-        oldmode = self._device.readU8(MODE1);
+        oldmode = self._device.read_byte_data(MODE1);
         newmode = (oldmode & 0x7F) | 0x10    # sleep
-        self._device.write8(MODE1, newmode)  # go to sleep
-        self._device.write8(PRESCALE, prescale)
-        self._device.write8(MODE1, oldmode)
+        self._device.write_byte_data(MODE1, newmode)  # go to sleep
+        self._device.write_byte_data(PRESCALE, prescale)
+        self._device.write_byte_data(MODE1, oldmode)
         time.sleep(0.005)
-        self._device.write8(MODE1, oldmode | 0x80)
+        self._device.write_byte_data(MODE1, oldmode | 0x80)
+        return (prescaleval + 1) * 4096.0 / 25e6 # Return the PWM frequency we actually set
+
+    def set_pwm_range(self, channel, pwm_range):
+        "Sets the maximum value of the PWM for the channel, all calls to set_pwm will be scaled"
+        self.ranges[channel] = pwm_range
+
+    def get_pwm_range(self, channel):
+        return self.ranges[channel]
+
+    def set_all_pwm_range(self, pwm_range):
+        self.ranges = [pwm_range] * NUM_CHANNELS
 
     def set_pwm(self, channel, on, off):
         """Sets a single PWM channel."""
-        self._device.write8(LED0_ON_L+4*channel, on & 0xFF)
-        self._device.write8(LED0_ON_H+4*channel, on >> 8)
-        self._device.write8(LED0_OFF_L+4*channel, off & 0xFF)
-        self._device.write8(LED0_OFF_H+4*channel, off >> 8)
+        if 0 < channel or channel >= NUM_CHANNELS:
+            raise IndexError("Invalid channel {}".format(channel))
+        on  = round(MAX_PWM * on  / self.ranges[channel])
+        assert on <= MAX_PWM
+        off = round(MAX_PWM * off / self.ranges[channel])
+        assert off <= MAX_PWM
+        self._device.write_byte_data(LED0_ON_L+4*channel, on & 0xFF)
+        self._device.write_byte_data(LED0_ON_H+4*channel, on >> 8)
+        self._device.write_byte_data(LED0_OFF_L+4*channel, off & 0xFF)
+        self._device.write_byte_data(LED0_OFF_H+4*channel, off >> 8)
 
     def set_all_pwm(self, on, off):
         """Sets all PWM channels."""
-        self._device.write8(ALL_LED_ON_L, on & 0xFF)
-        self._device.write8(ALL_LED_ON_H, on >> 8)
-        self._device.write8(ALL_LED_OFF_L, off & 0xFF)
-        self._device.write8(ALL_LED_OFF_H, off >> 8)
+        self._device.write_byte_data(ALL_LED_ON_L, on & 0xFF)
+        self._device.write_byte_data(ALL_LED_ON_H, on >> 8)
+        self._device.write_byte_data(ALL_LED_OFF_L, off & 0xFF)
+        self._device.write_byte_data(ALL_LED_OFF_H, off >> 8)
+    
+    def set(self, channel, high):
+        "Sets the pin to either 100% on or 100% off"
+        if high:
+            on  = FULL_ON_OFF
+            off = 0
+        else:
+            on  = 0
+            off = FULL_ON_OFF
+        self._device.write_byte_data(LED0_ON_L+4*channel, on & 0xFF)
+        self._device.write_byte_data(LED0_ON_H+4*channel, on >> 8)
+        self._device.write_byte_data(LED0_OFF_L+4*channel, off & 0xFF)
+        self._device.write_byte_data(LED0_OFF_H+4*channel, off >> 8)
+        return high
+
+    def set_all(self, high):
+        if high:
+            on  = FULL_ON_OFF
+            off = 0
+        else:
+            on  = 0
+            off = FULL_ON_OFF
+        self._device.write_byte_data(ALL_LED_ON_L, on & 0xFF)
+        self._device.write_byte_data(ALL_LED_ON_H, on >> 8)
+        self._device.write_byte_data(ALL_LED_OFF_L, off & 0xFF)
+        self._device.write_byte_data(ALL_LED_OFF_H, off >> 8)
