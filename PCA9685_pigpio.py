@@ -65,6 +65,18 @@ class PCA9685Pi(pigpio.pi):
             else:
                 return extender.set_pwm_range(gpioNum, range)
     
+    def get_PWM_range(self, user_gpio):
+        try:
+            extender, gpioNum = self._extendedGPIO(user_gpio)
+        except GpioNumException as e:
+            logger.warn(str(e))
+            return pigpio.PI_BAD_USER_GPIO
+        else:
+            if extender is None:
+                return pigpio.pi.get_PWM_range(self, user_gpio)
+            else:
+                return extender.get_pwm_range(gpioNum)
+    
     def set_PWM_dutycycle(self, user_gpio, dutycycle, delay=0):
         try:
             extender, gpioNum = self._extendedGPIO(user_gpio)
