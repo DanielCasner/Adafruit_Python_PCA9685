@@ -46,7 +46,7 @@ class I2C:
         self._pi.i2c_write_block_data(self._handle, *args, **kwargs)
     def write_byte(self, *args, **kwargs):
         self._pi.i2c_write_byte(self._handle, *args, **kwargs)
-    def write_byte_data(self. *args, **kwargs):
+    def write_byte_data(self, *args, **kwargs):
         self._pi.i2c_write_byte_data(self._handle, *args, **kwargs)
     def write_device(self, *args, **kwargs):
         self._pi.i2c_write_device(self._handle, *args, **kwargs)

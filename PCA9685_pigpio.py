@@ -3,7 +3,7 @@
 __author__ = "Daniel Casner <www.danielcasner.org>"
 
 import pigpio
-import PCA9685
+from PCA9685_pigpio import PCA9685
 import logging
 
 logger = logging.getLogger(__name__)
@@ -76,9 +76,9 @@ class PCA9685Pi(pigpio.pi):
                 return pigpio.pi.set_PWM_dutycycle(self, user_gpio, dutycycle)
             else:
                 dutyRange = extender.get_pwm_range(gpioNum)
-                if dutycycle > dutyRange
+                if dutycycle > dutyRange:
                     return pigpio.PI_BAD_DUTYCYCLE
-                elif delay > dutyRange
+                elif delay > dutyRange:
                     return pigpio.PI_BAD_DUTYCYCLE
                 else:
                     on  = delay

@@ -27,7 +27,7 @@ from __future__ import division
 from __future__ import print_function
 import logging
 import pigpio
-from pigpio_i2c import I2C
+from PCA9685_pigpio.pigpio_i2c import I2C
 import time
 import math
 
