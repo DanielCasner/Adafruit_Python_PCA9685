@@ -19,7 +19,7 @@ class PCA9685Pi(pigpio.pi):
     EXTENDER_SHIFT  = 8
     GPIO_MASK       = 0x0FF
     
-    def __init__(self, i2c_bus=0, extender_addresses=[PCA9685.PCA9685_ADDRESS], *args, **kwargs):
+    def __init__(self, i2c_bus=1, extender_addresses=[PCA9685.PCA9685_ADDRESS], *args, **kwargs):
         pigpio.pi.__init__(self, *args, **kwargs)
         self.extenders = [PCA9685.PCA9685(addr, self, i2c_bus) for addr in extender_addresses]
         for e in extenders:
