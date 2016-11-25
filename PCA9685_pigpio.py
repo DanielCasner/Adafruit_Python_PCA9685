@@ -22,8 +22,6 @@ class PCA9685Pi(pigpio.pi):
     def __init__(self, i2c_bus=1, extender_addresses=[PCA9685.PCA9685_ADDRESS], *args, **kwargs):
         pigpio.pi.__init__(self, *args, **kwargs)
         self.extenders = [PCA9685.PCA9685(addr, self, i2c_bus) for addr in extender_addresses]
-        for e in extenders:
-            e.set_all_pwm_range(255) # Default to the same range as pigpio
 
     def _extendedGPIO(self, gpioNum):
         "Returns the extender index (or None) and gpio number"
@@ -33,7 +31,7 @@ class PCA9685Pi(pigpio.pi):
             extInd = (gpioNum >> self.EXTENDER_SHIFT) - 1
             if extInd > len(self.extenders):
                 raise GpioNumException("No extender that high", gpioNum)
-            elif (gpioNum & self.GPIO_MASK) >= PCM9685.NUM_CHANNELS:
+            elif (gpioNum & self.GPIO_MASK) >= PCA9685.NUM_CHANNELS:
                 raise GpioNumException("Invalid gpio number", gpioNum)
             else:
                 return self.extenders[extInd], gpioNum & self.GPIO_MASK
@@ -51,7 +49,7 @@ class PCA9685Pi(pigpio.pi):
                 logger.error("Extender PWM frequency can only be set on base extender address")
                 return pigpio.PI_BAD_USER_GPIO
             else:
-                return extender.set_PWM_freq(frequency)
+                return extender.set_pwm_freq(frequency)
     
     def set_PWM_range(self, user_gpio, range):
         try:
@@ -94,12 +92,12 @@ class PCA9685Pi(pigpio.pi):
                     return pigpio.PI_BAD_DUTYCYCLE
                 else:
                     on  = delay
-                    off = (dutycycle + delay) % dutyRange
+                    off = (dutycycle + delay) % (dutyRange+1)
                     return extender.set_pwm(gpioNum, on, off)
 
     def write(self, gpio, level):
         try:
-            extender, gpioNum = self._extendedGPIO(user_gpio)
+            extender, gpioNum = self._extendedGPIO(gpio)
         except GpioNumException as e:
             logger.warn(str(e))
             return pigpio.PI_BAD_USER_GPIO

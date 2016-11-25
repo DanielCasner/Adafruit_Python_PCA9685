@@ -29,7 +29,6 @@ import logging
 import pigpio
 from PCA9685_pigpio.pigpio_i2c import I2C
 import time
-import math
 
 
 # Registers/etc:
@@ -98,11 +97,11 @@ class PCA9685(object):
         """Set the PWM frequency to the provided value in hertz."""
         prescaleval = 25000000.0    # 25MHz
         prescaleval /= 4096.0       # 12-bit
-        prescaleval /= float(freq_hz)
+        prescaleval = float(freq_hz)/prescaleval
         prescaleval -= 1.0
         logger.debug('Setting PWM frequency to {0} Hz'.format(freq_hz))
         logger.debug('Estimated pre-scale: {0}'.format(prescaleval))
-        prescale = int(math.floor(prescaleval + 0.5))
+        prescale = round(prescaleval)
         logger.debug('Final pre-scale: {0}'.format(prescale))
         oldmode = self._device.read_byte_data(MODE1);
         newmode = (oldmode & 0x7F) | 0x10    # sleep
@@ -111,7 +110,6 @@ class PCA9685(object):
         self._device.write_byte_data(MODE1, oldmode)
         time.sleep(0.005)
         self._device.write_byte_data(MODE1, oldmode | 0x80)
-        return (prescaleval + 1) * 4096.0 / 25e6 # Return the PWM frequency we actually set
 
     def set_pwm_range(self, channel, pwm_range):
         "Sets the maximum value of the PWM for the channel, all calls to set_pwm will be scaled"
@@ -125,7 +123,7 @@ class PCA9685(object):
 
     def set_pwm(self, channel, on, off):
         """Sets a single PWM channel."""
-        if 0 < channel or channel >= NUM_CHANNELS:
+        if channel < 0 or channel >= NUM_CHANNELS:
             raise IndexError("Invalid channel {}".format(channel))
         on  = round(MAX_PWM * on  / self.ranges[channel])
         assert on <= MAX_PWM
